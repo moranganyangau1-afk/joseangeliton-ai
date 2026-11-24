@@ -4,8 +4,8 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#090b13">
-    <meta name="description" content="JOSEANGELITON AI â€” more than AI, your digital best friend.">
-    <title>JOSEANGELITON AI â€” Your Digital Best Friend</title>
+    <meta name="description" content="JOSEANGELITON AI - more than AI, your digital best friend.">
+    <title>JOSEANGELITON AI - Your Digital Best Friend</title>
     <link rel="icon" href="logo.svg" type="image/svg+xml">
     <link rel="stylesheet" href="styles.css">
   </head>
@@ -15,35 +15,35 @@
         <div class="brand">
           <img src="logo.svg" alt="" class="brand-mark">
           <span class="brand-copy"><strong>JOSEANGELITON</strong><small>AI COMPANION</small></span>
-          <button class="icon-button sidebar-close" id="closeSidebar" aria-label="Close sidebar">Ã—</button>
+          <button class="icon-button sidebar-close" id="closeSidebar" aria-label="Close sidebar">x</button>
         </div>
-        <button class="new-chat-button" id="newChat"><span>ï¼‹</span> New conversation <kbd>âŒ˜ K</kbd></button>
+        <button class="new-chat-button" id="newChat"><span>+</span> New conversation <kbd>Ctrl K</kbd></button>
         <label class="search-box">
-          <span aria-hidden="true">âŒ•</span>
+          <span aria-hidden="true">/</span>
           <input id="chatSearch" type="search" placeholder="Search conversations" aria-label="Search conversations">
           <kbd>/</kbd>
         </label>
         <div class="sidebar-section-heading"><span>YOUR SPACE</span><button class="text-button" id="memoryShortcut">MEMORY</button></div>
         <nav class="chat-list" id="chatList" aria-label="Recent conversations"></nav>
         <div class="sidebar-bottom">
-          <div class="privacy-note"><span class="privacy-icon">â—ˆ</span><span><strong>Your space, your data.</strong><small>Chats stay in this browser.</small></span></div>
+          <div class="privacy-note"><span class="privacy-icon">*</span><span><strong>Your space, your data.</strong><small>Chats stay in this browser.</small></span></div>
           <button class="profile-button" id="openSettings">
             <span class="profile-avatar" id="profileAvatar">J</span>
             <span class="profile-copy"><strong id="profileName">Your profile</strong><small>Personalize your space</small></span>
-            <span class="profile-more">Â·Â·Â·</span>
+            <span class="profile-more">...</span>
           </button>
         </div>
       </aside>
 
       <main class="main-panel">
         <header class="topbar">
-          <button class="icon-button mobile-menu" id="openSidebar" aria-label="Open sidebar">â˜°</button>
-          <div class="connection-label"><span class="status-dot" id="statusDot"></span><span id="statusLabel">Checking local AIâ€¦</span></div>
+          <button class="icon-button mobile-menu" id="openSidebar" aria-label="Open sidebar">Menu</button>
+          <div class="connection-label"><span class="status-dot" id="statusDot"></span><span id="statusLabel">Checking local AI...</span></div>
           <div class="topbar-actions">
-            <button class="mode-button" id="modeButton" title="Change personality"><span class="mode-spark">âœ³</span><span id="modeLabel">Friendly</span><span class="chevron">âŒ„</span></button>
-            <button class="icon-button hidden" id="clearChatButton" aria-label="Clear this conversation" title="Clear conversation">âŒ«</button>
-            <button class="icon-button" id="themeToggle" aria-label="Toggle light and dark theme" title="Toggle theme">â˜¼</button>
-            <button class="icon-button settings-icon" id="settingsIcon" aria-label="Settings" title="Settings">âš™</button>
+            <button class="mode-button" id="modeButton" title="Change personality"><span class="mode-spark">*</span><span id="modeLabel">Friendly</span><span class="chevron">v</span></button>
+            <button class="icon-button hidden" id="clearChatButton" aria-label="Clear this conversation" title="Clear conversation">Clear</button>
+            <button class="icon-button" id="themeToggle" aria-label="Toggle light and dark theme" title="Toggle theme">Light</button>
+            <button class="icon-button settings-icon" id="settingsIcon" aria-label="Settings" title="Settings">Settings</button>
           </div>
         </header>
 
@@ -52,19 +52,19 @@
             <div class="hero-orb" aria-hidden="true">
               <div class="orb-ring orb-ring-one"></div><div class="orb-ring orb-ring-two"></div>
               <img src="logo.svg" alt="" class="hero-logo">
-              <span class="orb-star star-one">âœ¦</span><span class="orb-star star-two">âœ§</span>
+              <span class="orb-star star-one">*</span><span class="orb-star star-two">*</span>
             </div>
             <div class="eyebrow"><span class="eyebrow-line"></span> A LITTLE MORE HUMAN <span class="eyebrow-line"></span></div>
             <h1>HELLO, I'M<br><span>JOSEANGELITON AI</span></h1>
             <p class="welcome-subtitle">Your digital best friend is ready.</p>
             <p class="welcome-description">A thoughtful sidekick for big ideas, little questions, and everything in between.</p>
             <div class="suggestion-grid">
-              <button class="suggestion-card" data-prompt="Tell me a joke."><span class="suggestion-icon violet">â™§</span><span><strong>Brighten my day</strong><small>Tell me a joke</small></span><b>â†—</b></button>
-              <button class="suggestion-card" data-prompt="Help me understand a subject I'm studying. Explain it simply and ask what level I'm at."><span class="suggestion-icon blue">âŒ˜</span><span><strong>Study buddy</strong><small>Help me with my studies</small></span><b>â†—</b></button>
-              <button class="suggestion-card" data-prompt="Help me brainstorm some fresh business ideas based on my interests."><span class="suggestion-icon pink">âœ³</span><span><strong>Think bigger</strong><small>Give me business ideas</small></span><b>â†—</b></button>
-              <button class="suggestion-card" data-prompt="Let's have a conversation. Ask me something interesting."><span class="suggestion-icon mint">â—Œ</span><span><strong>Just because</strong><small>Let's have a conversation</small><b>â†—</b></span></button>
-              <button class="suggestion-card" data-prompt="Give me a playful, affectionate roast. Keep it light and kind."><span class="suggestion-icon orange">â™¨</span><span><strong>Brave enough?</strong><small>Roast me (playfully)</small></span><b>â†—</b></button>
-              <button class="suggestion-card" data-prompt="Help me plan my day. Ask what I need to get done and how much time I have."><span class="suggestion-icon yellow">â—·</span><span><strong>Get in rhythm</strong><small>Plan my day</small><b>â†—</b></span></button>
+              <button class="suggestion-card" data-prompt="Tell me a joke."><span class="suggestion-icon violet">J</span><span><strong>Brighten my day</strong><small>Tell me a joke</small></span><b>&gt;</b></button>
+              <button class="suggestion-card" data-prompt="Help me understand a subject I'm studying. Explain it simply and ask what level I'm at."><span class="suggestion-icon blue">S</span><span><strong>Study buddy</strong><small>Help me with my studies</small></span><b>&gt;</b></button>
+              <button class="suggestion-card" data-prompt="Help me brainstorm some fresh business ideas based on my interests."><span class="suggestion-icon pink">B</span><span><strong>Think bigger</strong><small>Give me business ideas</small></span><b>&gt;</b></button>
+              <button class="suggestion-card" data-prompt="Let's have a conversation. Ask me something interesting."><span class="suggestion-icon mint">C</span><span><strong>Just because</strong><small>Let's have a conversation</small><b>&gt;</b></span></button>
+              <button class="suggestion-card" data-prompt="Give me a playful, affectionate roast. Keep it light and kind."><span class="suggestion-icon orange">R</span><span><strong>Brave enough?</strong><small>Roast me (playfully)</small></span><b>&gt;</b></button>
+              <button class="suggestion-card" data-prompt="Help me plan my day. Ask what I need to get done and how much time I have."><span class="suggestion-icon yellow">P</span><span><strong>Get in rhythm</strong><small>Plan my day</small><b>&gt;</b></span></button>
             </div>
             <div class="setup-nudge hidden" id="setupNudge"><strong>Make it yours with local AI</strong><span>Install Ollama, then run <code>ollama pull llama3.2</code> to download a model.</span><button type="button" id="setupButton">Open setup guide</button></div>
           </div>
@@ -74,17 +74,17 @@
 
         <footer class="composer-area">
           <form class="composer" id="chatForm">
-            <textarea id="messageInput" rows="1" maxlength="12000" placeholder="Message your digital best friendâ€¦" aria-label="Your message"></textarea>
+            <textarea id="messageInput" rows="1" maxlength="12000" placeholder="Message your digital best friend..." aria-label="Your message"></textarea>
             <div class="composer-toolbar">
               <div class="composer-tools">
-                <button class="tool-button" type="button" id="voiceInput" title="Speak your message" aria-label="Use microphone">â™©<span class="tool-label">Voice</span></button>
-                <button class="tool-button" type="button" id="speakToggle" title="Toggle spoken replies" aria-label="Toggle spoken replies">â—–<span class="tool-label">Speak replies</span></button>
-                <button class="tool-button memory-tool" type="button" id="memoryButton" title="View saved memories">â—‡<span class="tool-label">Memory</span></button>
+                <button class="tool-button" type="button" id="voiceInput" title="Speak your message" aria-label="Use microphone">Mic<span class="tool-label">Voice</span></button>
+                <button class="tool-button" type="button" id="speakToggle" title="Toggle spoken replies" aria-label="Toggle spoken replies">Speak<span class="tool-label">Speak replies</span></button>
+                <button class="tool-button memory-tool" type="button" id="memoryButton" title="View saved memories">Memory<span class="tool-label">Memory</span></button>
               </div>
-              <div class="send-side"><span class="key-hint">Shift + Enter for a new line</span><button class="send-button" id="sendButton" type="submit" aria-label="Send message" disabled><span>â†‘</span></button></div>
+              <div class="send-side"><span class="key-hint">Shift + Enter for a new line</span><button class="send-button" id="sendButton" type="submit" aria-label="Send message" disabled><span>^</span></button></div>
             </div>
           </form>
-          <div class="disclaimer"><span class="tiny-shield">â—ˆ</span> Local AI stays on your device <span class="disclaimer-sep">Â·</span> <button id="aboutLink">About privacy</button></div>
+          <div class="disclaimer"><span class="tiny-shield">*</span> Local AI stays on your device <span class="disclaimer-sep">-</span> <button id="aboutLink">About privacy</button></div>
         </footer>
       </main>
       <div class="sidebar-scrim" id="sidebarScrim"></div>
