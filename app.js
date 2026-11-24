@@ -1,513 +1,703 @@
-const $ = (selector, root = document) => root.querySelector(selector);
-const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
-const navButtons = $$("[data-view]");
-const views = $$("[data-view-panel]");
-const messagesEl = $("#messages");
-const input = $("#chatInput");
-const form = $("#chatForm");
-const authModal = $("#authModal");
-const authForm = $("#authForm");
-const api = { firebaseReady: false, auth: null, user: null, conversationId: null, messages: [], conversations: [], mode: "signin", tool: null, voiceMode: false };
-let firebaseAuthSdk;
-let toastTimer;
+(function () {
+  "use strict";
+  const $ = (selector, root = document) => root.querySelector(selector);
+  const $$ = (selector, root = document) => Array.from(root.querySelectorAll(selector));
+  const MAX_MESSAGE_LENGTH = 12000;
+  const state = window.AppStorage.load();
+  let modalKind = "";
+  let currentSettingsTab = "connection";
+  let modelNames = [];
+  let speechRecognition = null;
+  let busy = false;
 
-function toast(message) {
-  const element = $("#toast");
-  element.textContent = message;
-  element.classList.add("visible");
-  window.clearTimeout(toastTimer);
-  toastTimer = window.setTimeout(() => element.classList.remove("visible"), 3400);
-}
-
-function setView(name) {
-  const selected = views.find((view) => view.dataset.viewPanel === name) || $("#homeView");
-  views.forEach((view) => view.classList.toggle("active", view === selected));
-  navButtons.forEach((button) => button.classList.toggle("active", button.dataset.view === selected.dataset.viewPanel));
-  $("#crumbTitle").textContent = selected.dataset.viewPanel;
-  $("#sidebar").classList.remove("open");
-  if (name === "History") loadHistory();
-}
-
-function openAuth(mode = "signin") {
-  api.mode = mode;
-  $("#authTitle").textContent = mode === "signup" ? "Let’s get started." : "Welcome back.";
-  $("#authSubtitle").textContent = mode === "signup"
-    ? "Create an account to keep your conversations private and in sync."
-    : "Sign in to keep your conversations private and in sync.";
-  $("#nameField").hidden = mode !== "signup";
-  $("#authPassword").autocomplete = mode === "signup" ? "new-password" : "current-password";
-  $("#authSubmit").innerHTML = `${mode === "signup" ? "Create account" : "Sign in"} <span>→</span>`;
-  $("#authSwitch").textContent = mode === "signup" ? "Already have an account? Sign in" : "Create an account";
-  $("#resetPassword").hidden = mode === "signup";
-  $("#authError").textContent = "";
-  authModal.classList.add("open");
-  authModal.setAttribute("aria-hidden", "false");
-  window.setTimeout(() => $("#authEmail").focus(), 100);
-}
-
-function closeAuth() {
-  authModal.classList.remove("open");
-  authModal.setAttribute("aria-hidden", "true");
-}
-
-function currentToken() {
-  if (!api.user) throw new Error("Please sign in to use your private AI chat.");
-  return api.user.getIdToken();
-}
-
-async function request(path, options = {}) {
-  const token = await currentToken();
-  const response = await fetch(path, {
-    ...options,
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, ...options.headers },
-  });
-  const result = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(result.error || "That request didn’t go through. Please try again.");
-  return result;
-}
-
-function updateProfileUI(user) {
-  const displayName = user?.displayName || user?.email?.split("@")[0] || "Guest";
-  const initials = displayName.split(/[\s._-]+/).filter(Boolean).slice(0, 2).map((part) => part[0].toUpperCase()).join("") || "JA";
-  $("#profileName").textContent = displayName;
-  $("#profileEmail").textContent = user?.email || "Sign in to sync your chats";
-  $("#avatarInitials").textContent = initials;
-  $("#settingsName").textContent = displayName;
-  $("#settingsEmail").textContent = user?.email || "Not signed in";
-  $("#settingsAvatar").textContent = initials;
-  $("#signInButton").innerHTML = user ? "Sign out <span>↗</span>" : "Sign in <span>↗</span>";
-  $("#accountAction").textContent = user ? "Sign out" : "Sign in";
-  $("#deleteAccountData").disabled = !user;
-}
-
-function addMessage(role, text, { actions = true } = {}) {
-  $("#welcomeMessage")?.remove();
-  const message = document.createElement("article");
-  message.className = `message ${role}`;
-  const label = document.createElement("div");
-  label.className = "message-label";
-  label.innerHTML = role === "user" ? "<span>YOU</span>" : "<span>✦</span> JOSEANGELITON AI";
-  const body = document.createElement("div");
-  body.className = "message-body";
-  body.textContent = text;
-  message.append(label, body);
-  if (role === "assistant" && actions) {
-    const toolbar = document.createElement("div");
-    toolbar.className = "message-actions";
-    const copy = document.createElement("button");
-    copy.type = "button";
-    copy.textContent = "Copy";
-    copy.addEventListener("click", async () => {
-      try {
-        await navigator.clipboard.writeText(text);
-        toast("Copied to clipboard.");
-      } catch {
-        toast("Clipboard access isn’t available in this browser.");
-      }
-    });
-    const speak = document.createElement("button");
-    speak.type = "button";
-    speak.textContent = "Read aloud";
-    speak.addEventListener("click", () => {
-      if (!("speechSynthesis" in window)) return toast("Text-to-speech isn’t supported by this browser.");
-      window.speechSynthesis.cancel();
-      window.speechSynthesis.speak(new SpeechSynthesisUtterance(text));
-    });
-    const regenerate = document.createElement("button");
-    regenerate.type = "button";
-    regenerate.textContent = "Regenerate";
-    regenerate.addEventListener("click", regenerateReply);
-    toolbar.append(copy, speak, regenerate);
-    message.append(toolbar);
-  }
-  messagesEl.append(message);
-  messagesEl.scrollTop = messagesEl.scrollHeight;
-  return message;
-}
-
-function showWelcome() {
-  messagesEl.innerHTML = `<div class="welcome-message" id="welcomeMessage"><span class="welcome-star">✳</span><h2>Hey there. What are we<br />making happen today?</h2><p>Ask me anything — or pick a little nudge to get started.</p><div class="suggestion-row"><button data-prompt="Explain a topic I find confusing in simple terms.">Explain something</button><button data-prompt="Help me brainstorm a few creative ideas.">Brainstorm ideas</button><button data-prompt="Help me make a simple plan for today.">Plan my day</button></div></div>`;
-}
-
-function showMessages(messages = []) {
-  messagesEl.innerHTML = "";
-  if (!messages.length) return showWelcome();
-  messages.forEach(({ role, content }) => addMessage(role === "user" ? "user" : "assistant", content, { actions: role !== "user" }));
-}
-
-function setBusy(busy) {
-  $("#sendButton").disabled = busy;
-  input.disabled = busy;
-  if (busy) {
-    const indicator = document.createElement("article");
-    indicator.className = "message assistant";
-    indicator.id = "typingIndicator";
-    indicator.innerHTML = `<div class="message-label"><span>✦</span> JOSEANGELITON AI</div><div class="message-body typing" aria-label="Thinking"><i></i><i></i><i></i></div>`;
-    messagesEl.append(indicator);
-    messagesEl.scrollTop = messagesEl.scrollHeight;
-  } else $("#typingIndicator")?.remove();
-}
-
-async function sendMessage(text, { regenerate = false } = {}) {
-  const message = text.trim();
-  if (!message || $("#sendButton").disabled) return;
-  if (!api.user) {
-    openAuth();
-    toast("Sign in to start a private, saved conversation.");
-    return;
-  }
-  const previousReply = regenerate && api.messages.at(-1)?.role === "assistant" ? api.messages.at(-1).content : null;
-  if (!regenerate) {
-    api.messages.push({ role: "user", content: message });
-    addMessage("user", message, { actions: false });
-  }
-  input.value = "";
-  input.style.height = "auto";
-  setBusy(true);
-  try {
-    const result = await request("/api/chat", {
-      method: "POST",
-      body: JSON.stringify({ conversationId: api.conversationId, message, regenerate, tool: api.tool }),
-    });
-    api.conversationId = result.conversationId;
-    api.messages = result.messages;
-    $("#typingIndicator")?.remove();
-    addMessage("assistant", result.reply);
-    if (api.voiceMode && "speechSynthesis" in window) {
-      const utterance = new SpeechSynthesisUtterance(result.reply);
-      utterance.onend = () => { if (api.voiceMode) startVoiceCapture(); };
-      window.speechSynthesis.speak(utterance);
-    }
-  } catch (error) {
-    $("#typingIndicator")?.remove();
-    if (!regenerate) {
-      api.messages.pop();
-      $$(".message.user", messagesEl).at(-1)?.remove();
-    } else if (previousReply) {
-      addMessage("assistant", previousReply);
-    }
-    if (!api.messages.length) showWelcome();
-    toast(error.message);
-  } finally {
-    setBusy(false);
-    input.focus();
-  }
-}
-
-function regenerateReply() {
-  const lastUser = [...api.messages].reverse().find((message) => message.role === "user");
-  if (!lastUser) return toast("There isn’t a message to regenerate yet.");
-  const assistantMessage = $$(".message.assistant", messagesEl).at(-1);
-  assistantMessage?.remove();
-  sendMessage(lastUser.content, { regenerate: true });
-}
-
-async function loadHistory() {
-  const list = $("#historyList");
-  if (!api.user) {
-    list.innerHTML = `<div class="empty-state"><strong>Your history starts here.</strong>Sign in to save and revisit your conversations.</div>`;
-    return;
-  }
-  list.innerHTML = `<div class="empty-state">Loading your conversations…</div>`;
-  try {
-    const result = await request("/api/conversations");
-    api.conversations = result.conversations;
-    renderHistory();
-  } catch (error) {
-    list.innerHTML = `<div class="empty-state"><strong>Couldn’t load your history.</strong>${escapeHtml(error.message)}</div>`;
-  }
-}
-
-function escapeHtml(text) {
-  const element = document.createElement("span");
-  element.textContent = text;
-  return element.innerHTML;
-}
-
-function renderHistory() {
-  const list = $("#historyList");
-  if (!api.conversations.length) {
-    list.innerHTML = `<div class="empty-state"><strong>No conversations yet.</strong>Start a chat and your saved conversations will show up here.</div>`;
-    return;
-  }
-  list.replaceChildren(...api.conversations.map((conversation) => {
-    const row = document.createElement("div");
-    row.className = "history-entry";
-    const icon = document.createElement("span");
-    icon.className = "assistant-avatar";
-    icon.textContent = "✦";
-    const open = document.createElement("button");
-    open.type = "button";
-    const title = document.createElement("strong");
-    title.textContent = conversation.title;
-    const preview = document.createElement("small");
-    preview.textContent = conversation.preview || "Open conversation";
-    open.append(title, preview);
-    open.addEventListener("click", () => openConversation(conversation.id));
-    const date = document.createElement("time");
-    date.textContent = conversation.updatedAt ? new Date(conversation.updatedAt).toLocaleDateString() : "";
-    const remove = document.createElement("button");
-    remove.type = "button";
-    remove.className = "history-delete";
-    remove.textContent = "×";
-    remove.setAttribute("aria-label", `Delete ${conversation.title}`);
-    remove.addEventListener("click", () => deleteConversation(conversation.id));
-    row.append(icon, open, date, remove);
-    return row;
-  }));
-}
-
-async function openConversation(id) {
-  try {
-    const result = await request(`/api/conversations/${encodeURIComponent(id)}`);
-    api.conversationId = result.conversation.id;
-    api.messages = result.conversation.messages;
-    api.tool = result.conversation.tool;
-    showMessages(api.messages);
-    setView("Chat");
-  } catch (error) {
-    toast(error.message);
-  }
-}
-
-async function deleteConversation(id) {
-  try {
-    await request(`/api/conversations/${encodeURIComponent(id)}`, { method: "DELETE" });
-    api.conversations = api.conversations.filter((conversation) => conversation.id !== id);
-    renderHistory();
-    if (api.conversationId === id) newChat();
-    toast("Conversation deleted.");
-  } catch (error) {
-    toast(error.message);
-  }
-}
-
-function newChat() {
-  api.conversationId = null;
-  api.messages = [];
-  api.tool = null;
-  input.dataset.tool = "";
-  input.placeholder = "Message JOSEANGELITON AI...";
-  input.value = "";
-  input.style.height = "auto";
-  showWelcome();
-  setView("Chat");
-  input.focus();
-}
-
-async function configureFirebase() {
-  try {
-    const response = await fetch("/api/config");
-    if (!response.ok) throw new Error("App configuration isn’t available yet.");
-    const { firebase } = await response.json();
-    if (!firebase || !firebase.apiKey || !firebase.projectId || !firebase.authDomain) throw new Error("Firebase isn’t configured.");
-    const [firebaseAppSdk, authSdk] = await Promise.all([
-      import("https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js"),
-      import("https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js"),
-    ]);
-    firebaseAuthSdk = authSdk;
-    const app = firebaseAppSdk.initializeApp(firebase);
-    api.auth = firebaseAuthSdk.getAuth(app);
-    api.firebaseReady = true;
-    firebaseAuthSdk.onAuthStateChanged(api.auth, (user) => {
-      api.user = user;
-      updateProfileUI(user);
-      if (!user) {
-        api.conversationId = null;
-        api.messages = [];
-        api.conversations = [];
-        showMessages([]);
-      }
-      if ($("#historyView").classList.contains("active")) loadHistory();
-    });
-  } catch (error) {
-    updateProfileUI(null);
-    console.error("Firebase initialization failed:", error.message);
-    $("#authSubtitle").textContent = error.message === "Firebase isn’t configured."
-      ? "Add Firebase configuration on the server to enable secure accounts."
-      : "Couldn’t load account services. Check the server and Firebase setup, then try again.";
-  }
-}
-
-navButtons.forEach((button) => button.addEventListener("click", () => setView(button.dataset.view)));
-$$("[data-tool]").forEach((button) => button.addEventListener("click", () => {
-  const tool = button.dataset.tool;
-  newChat();
-  toast(`You’re in ${tool}. What would you like help with?`);
-  api.tool = tool;
-  input.dataset.tool = tool;
-  input.placeholder = `Ask JOSEANGELITON ${tool}...`;
-}));
-$$("[data-start-chat]").forEach((button) => button.addEventListener("click", newChat));
-$$("[data-prompt]").forEach((button) => button.addEventListener("click", () => {
-  input.value = button.dataset.prompt;
-  input.focus();
-}));
-$("#newChat").addEventListener("click", newChat);
-$("#clearChat").addEventListener("click", newChat);
-$("#menuButton").addEventListener("click", () => $("#sidebar").classList.toggle("open"));
-$("#signInButton").addEventListener("click", async () => {
-  if (api.user) await signOutUser();
-  else openAuth();
-});
-$("#profileButton").addEventListener("click", () => api.user ? setView("Profile") : openAuth());
-$("#accountAction").addEventListener("click", async () => {
-  if (api.user) await signOutUser();
-  else openAuth();
-});
-async function signOutUser() {
-  try {
-    await firebaseAuthSdk.signOut(api.auth);
-  } catch {
-    toast("We couldn’t sign you out. Please try again.");
-  }
-}
-$("#closeAuth").addEventListener("click", closeAuth);
-authModal.addEventListener("click", (event) => { if (event.target === authModal) closeAuth(); });
-$("#authSwitch").addEventListener("click", () => openAuth(api.mode === "signup" ? "signin" : "signup"));
-$("#resetPassword").addEventListener("click", async () => {
-  const email = $("#authEmail").value.trim();
-  if (!email) return ($("#authError").textContent = "Enter your email address first.");
-  try {
-    await firebaseAuthSdk.sendPasswordResetEmail(api.auth, email);
-    $("#authError").textContent = "";
-    toast("If an account exists for that email, a reset link is on its way.");
-  } catch (error) {
-    $("#authError").textContent = friendlyAuthError(error);
-  }
-});
-
-function friendlyAuthError(error) {
-  const messages = {
-    "auth/invalid-email": "That email address doesn’t look right.",
-    "auth/user-not-found": "Email or password is incorrect.",
-    "auth/wrong-password": "Email or password is incorrect.",
-    "auth/invalid-credential": "Email or password is incorrect.",
-    "auth/email-already-in-use": "There’s already an account with this email.",
-    "auth/weak-password": "Choose a password with at least 8 characters.",
-    "auth/too-many-requests": "Too many attempts. Please wait a moment and try again.",
-    "auth/network-request-failed": "Network issue. Check your connection and try again.",
+  const elements = {
+    sidebar: $("#sidebar"), sidebarScrim: $("#sidebarScrim"), chatList: $("#chatList"),
+    conversation: $("#conversation"), welcome: $("#welcome"), messages: $("#messages"),
+    input: $("#messageInput"), form: $("#chatForm"), send: $("#sendButton"),
+    typing: $("#typingIndicator"), statusDot: $("#statusDot"), statusLabel: $("#statusLabel"),
+    modalBackdrop: $("#modalBackdrop"), modal: $("#modal"), toastRegion: $("#toastRegion"),
   };
-  return messages[error.code] || "We couldn’t complete that. Please try again.";
-}
 
-authForm.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  if (!api.firebaseReady) {
-    $("#authError").textContent = "Firebase isn’t configured yet. See the setup instructions in README.";
-    return;
+  function persist() {
+    if (!window.AppStorage.save(state)) toast("Could not save your changes. Browser storage may be full.", "error");
   }
-  const email = $("#authEmail").value.trim();
-  const password = $("#authPassword").value;
-  const submit = $("#authSubmit");
-  submit.disabled = true;
-  $("#authError").textContent = "";
-  try {
-    if (api.mode === "signup") {
-      const credential = await firebaseAuthSdk.createUserWithEmailAndPassword(api.auth, email, password);
-      const name = $("#authName").value.trim();
-      if (name) await firebaseAuthSdk.updateProfile(credential.user, { displayName: name });
-      api.user = credential.user;
-      updateProfileUI(credential.user);
-    } else {
-      const credential = await firebaseAuthSdk.signInWithEmailAndPassword(api.auth, email, password);
-      api.user = credential.user;
-      updateProfileUI(credential.user);
+
+  function escapeHtml(value) {
+    return String(value).replace(/[&<>"']/g, (char) => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+    })[char]);
+  }
+
+  function toast(message, type) {
+    const item = document.createElement("div");
+    item.className = `toast${type ? ` ${type}` : ""}`;
+    item.textContent = message;
+    elements.toastRegion.append(item);
+    window.setTimeout(() => item.remove(), 3900);
+  }
+
+  function activeChat() {
+    return state.chats.find((chat) => chat.id === state.activeChatId) || null;
+  }
+
+  function hasSelectedModel() {
+    const selected = state.settings.model || "llama3.2";
+    return modelNames.some((name) => name === selected || name === `${selected}:latest`);
+  }
+
+  function newChat() {
+    const chat = { id: crypto.randomUUID(), title: "New conversation", createdAt: Date.now(), updatedAt: Date.now(), messages: [] };
+    state.chats.unshift(chat);
+    state.activeChatId = chat.id;
+    persist();
+    render();
+    closeSidebar();
+    elements.input.focus();
+  }
+
+  function setActiveChat(id) {
+    state.activeChatId = id;
+    persist();
+    render();
+    closeSidebar();
+  }
+
+  function setConnection(status, message) {
+    elements.statusDot.className = `status-dot${status === "connected" ? " connected" : status === "demo" ? " demo" : ""}`;
+    elements.statusLabel.textContent = message;
+    elements.statusLabel.title = message;
+    const nudge = $("#setupNudge");
+    if (nudge) {
+      nudge.classList.toggle("hidden", status === "connected");
+      const demoNotice = state.settings.demoMode
+        ? "DEMO MODE is on: replies are pre-written, not generated by AI."
+        : "Install Ollama, then run ollama pull llama3.2 to download a model.";
+      $("span", nudge).textContent = demoNotice;
+      $("strong", nudge).textContent = state.settings.demoMode ? "Demo mode · scripted replies" : "Make it yours with local AI";
+      $("button", nudge).textContent = state.settings.demoMode ? "Demo & setup options" : "Open setup guide";
     }
-    closeAuth();
-    toast(api.mode === "signup" ? "Account created. Welcome aboard!" : "You’re signed in. Your buddy’s ready.");
-  } catch (error) {
-    $("#authError").textContent = friendlyAuthError(error);
-  } finally {
-    submit.disabled = false;
   }
-});
 
-form.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  await sendMessage(input.value);
-});
-input.addEventListener("input", () => {
-  input.style.height = "auto";
-  input.style.height = `${Math.min(input.scrollHeight, 130)}px`;
-});
-document.addEventListener("click", (event) => {
-  const prompt = event.target.closest("[data-prompt]");
-  if (prompt && prompt.closest(".messages")) {
-    input.value = prompt.dataset.prompt;
-    input.focus();
+  function renderChatList() {
+    const query = $("#chatSearch").value.trim().toLowerCase();
+    const chats = state.chats.filter((chat) => !query || chat.title.toLowerCase().includes(query)
+      || chat.messages.some((message) => message.content.toLowerCase().includes(query)));
+    elements.chatList.replaceChildren();
+    if (!chats.length && query) {
+      const empty = document.createElement("div");
+      empty.className = "empty-search";
+      empty.textContent = "No conversations match that search.";
+      elements.chatList.append(empty);
+      return;
+    }
+    chats.forEach((chat) => {
+      const row = document.createElement("div");
+      row.className = `chat-item${chat.id === state.activeChatId ? " active" : ""}`;
+      row.dataset.chatId = chat.id;
+      const icon = document.createElement("span");
+      icon.className = "chat-item-icon";
+      icon.textContent = "◌";
+      const title = document.createElement("span");
+      title.className = "chat-item-title";
+      title.textContent = chat.title || "New conversation";
+      const menu = document.createElement("button");
+      menu.className = "chat-item-menu";
+      menu.type = "button";
+      menu.dataset.chatAction = "menu";
+      menu.setAttribute("aria-label", `Manage ${chat.title}`);
+      menu.textContent = "···";
+      row.append(icon, title, menu);
+      row.addEventListener("click", (event) => {
+        if (event.target.closest("[data-chat-action]")) return;
+        setActiveChat(chat.id);
+      });
+      menu.addEventListener("click", () => manageChat(chat.id));
+      elements.chatList.append(row);
+    });
   }
-  if (window.innerWidth <= 820 && $("#sidebar").classList.contains("open") && !event.target.closest("#sidebar") && !event.target.closest("#menuButton")) {
-    $("#sidebar").classList.remove("open");
-  }
-});
-document.addEventListener("keydown", (event) => {
-  if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
-    event.preventDefault();
-    newChat();
-  }
-  if (event.key === "Escape") {
-    closeAuth();
-    $("#sidebar").classList.remove("open");
-  }
-});
 
-function toggleTheme() {
-  document.body.classList.toggle("light-theme");
-  localStorage.setItem("joseangeliton-theme", document.body.classList.contains("light-theme") ? "light" : "dark");
-}
-$("#themeButton").addEventListener("click", toggleTheme);
-$("#profileTheme").addEventListener("click", toggleTheme);
-if (localStorage.getItem("joseangeliton-theme") === "light") document.body.classList.add("light-theme");
-$("#planInfo").addEventListener("click", () => toast("Subscriptions and payment processing aren’t enabled yet."));
-$("#deleteAccountData").addEventListener("click", async () => {
-  if (!api.user) return openAuth();
-  if (!window.confirm("Delete all your saved conversations? This cannot be undone.")) return;
-  try {
-    const result = await request("/api/conversations", { method: "DELETE" });
-    api.conversations = [];
-    if (api.conversationId) newChat();
-    toast(`${result.deleted} conversation${result.deleted === 1 ? "" : "s"} deleted.`);
-  } catch (error) {
-    toast(error.message);
+  function renderMessages() {
+    const chat = activeChat();
+    const hasMessages = chat && chat.messages.length > 0;
+    elements.welcome.classList.toggle("hidden", Boolean(hasMessages));
+    elements.messages.replaceChildren();
+    if (chat) {
+      chat.messages.forEach((message, index) => {
+        const row = document.createElement("article");
+        row.className = `message ${message.role}`;
+        const avatar = document.createElement("div");
+        avatar.className = message.role === "assistant" ? "assistant-avatar" : "user-avatar";
+        avatar.textContent = message.role === "assistant" ? (state.settings.assistantName || "J").slice(0, 1).toUpperCase() : (state.settings.userName || "Y").slice(0, 1).toUpperCase();
+        const body = document.createElement("div");
+        body.className = "message-body";
+        const content = document.createElement("div");
+        content.className = "message-content";
+        content.textContent = message.content;
+        body.append(content);
+        const meta = document.createElement("div");
+        meta.className = "message-meta";
+        const time = document.createElement("time");
+        time.dateTime = new Date(message.createdAt).toISOString();
+        time.textContent = new Date(message.createdAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+        meta.append(time);
+        if (message.role === "assistant" && message.demo) {
+          const label = document.createElement("span");
+          label.textContent = "DEMO · scripted reply, not AI";
+          label.style.color = "#c69bff";
+          meta.append(label);
+        } else if (message.role === "assistant" && message.error) {
+          const label = document.createElement("span");
+          label.textContent = "Not generated";
+          label.style.color = "#ffabb7";
+          meta.append(label);
+        }
+        if (message.role === "assistant" && !message.error) {
+          const tools = document.createElement("span");
+          tools.className = "message-tools";
+          const copy = document.createElement("button");
+          copy.className = "message-tool";
+          copy.type = "button";
+          copy.title = "Copy response";
+          copy.setAttribute("aria-label", "Copy response");
+          copy.dataset.messageAction = "copy";
+          copy.textContent = "▢";
+          copy.addEventListener("click", () => copyMessage(message.content));
+          tools.append(copy);
+          if (index === chat.messages.length - 1 && chat.messages.some((item) => item.role === "user")) {
+            const regenerate = document.createElement("button");
+            regenerate.className = "message-tool";
+            regenerate.type = "button";
+            regenerate.title = "Regenerate response";
+            regenerate.setAttribute("aria-label", "Regenerate response");
+            regenerate.textContent = "↻";
+            regenerate.addEventListener("click", regenerateResponse);
+            tools.append(regenerate);
+          }
+          meta.append(tools);
+        }
+        body.append(meta);
+        row.append(avatar, body);
+        elements.messages.append(row);
+      });
+    }
+    elements.conversation.scrollTop = elements.conversation.scrollHeight;
+    elements.send.disabled = busy || !elements.input.value.trim();
   }
-});
 
-const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-function startVoiceCapture() {
-  if (!SpeechRecognition) return toast("Voice input isn’t supported in this browser. You can still type a message.");
-  const recognition = new SpeechRecognition();
-  api.recognition = recognition;
-  recognition.lang = navigator.language || "en-US";
-  recognition.interimResults = false;
-  const button = $("#voiceButton");
-  recognition.onstart = () => button.classList.add("listening");
-  recognition.onerror = (event) => toast(event.error === "not-allowed" ? "Allow microphone access in your browser to use voice input." : "Voice input stopped. Please try again.");
-  recognition.onresult = (event) => {
-    input.value = `${input.value}${input.value ? " " : ""}${event.results[0][0].transcript}`;
-    input.dispatchEvent(new Event("input"));
-    input.focus();
-    if (api.voiceMode) form.requestSubmit();
-  };
-  recognition.onend = () => button.classList.remove("listening");
-  try { recognition.start(); } catch { toast("Voice input is already listening."); }
-}
-$("#voiceButton").addEventListener("click", startVoiceCapture);
-$("#voiceModeButton").addEventListener("click", (event) => {
-  if (!SpeechRecognition || !("speechSynthesis" in window)) {
-    toast("Voice conversation isn’t supported in this browser.");
-    return;
+  function render() {
+    renderChatList();
+    renderMessages();
+    $("#modeLabel").textContent = state.settings.personality;
+    document.body.classList.toggle("light-theme", state.settings.theme === "light");
+    const accents = {
+      "#8188ff": "129,136,255", "#40c8e8": "64,200,232", "#d27bff": "210,123,255",
+      "#ff7fa8": "255,127,168", "#6bd5a5": "107,213,165", "#ffa766": "255,167,102",
+    };
+    document.documentElement.style.setProperty("--accent", state.settings.accent);
+    document.documentElement.style.setProperty("--accent-rgb", accents[state.settings.accent] || "129,136,255");
+    document.documentElement.style.setProperty("--font-scale", ({ small: ".92", medium: "1", large: "1.1" })[state.settings.fontSize] || "1");
+    $("#profileName").textContent = state.settings.userName || "Your profile";
+    $("#profileAvatar").textContent = (state.settings.userName || "J").slice(0, 1).toUpperCase();
+    $("#speakToggle").classList.toggle("enabled", Boolean(state.settings.speakReplies));
+    $("#speakToggle").setAttribute("aria-pressed", String(Boolean(state.settings.speakReplies)));
+    const clearButton = $("#clearChatButton");
+    if (clearButton) clearButton.classList.toggle("hidden", !activeChat() || !activeChat().messages.length);
   }
-  api.voiceMode = !api.voiceMode;
-  event.currentTarget.classList.toggle("active", api.voiceMode);
-  event.currentTarget.setAttribute("aria-pressed", String(api.voiceMode));
-  if (api.voiceMode) startVoiceCapture();
-  else {
-    api.recognition?.stop();
+
+  function closeModal() {
+    elements.modalBackdrop.classList.add("hidden");
+    elements.modal.replaceChildren();
+    modalKind = "";
+  }
+
+  function showModal(title, subtitle, content) {
+    elements.modal.innerHTML = `<header class="modal-header"><div class="modal-heading"><h2 id="modalTitle">${escapeHtml(title)}</h2><p>${escapeHtml(subtitle || "")}</p></div><button class="modal-close" type="button" aria-label="Close dialog">×</button></header><div class="modal-content">${content}</div>`;
+    elements.modalBackdrop.classList.remove("hidden");
+    $(".modal-close", elements.modal).addEventListener("click", closeModal);
+    elements.modalBackdrop.onclick = (event) => {
+      if (event.target === elements.modalBackdrop) closeModal();
+    };
+  }
+
+  function openSettings(tab = "connection") {
+    currentSettingsTab = tab;
+    modalKind = "settings";
+    renderSettingsModal();
+  }
+
+  function renderSettingsModal(statusMessage = "") {
+    const modelOptions = modelNames.map((name) => `<option value="${escapeHtml(name)}"></option>`).join("");
+    const connectionTab = `<div class="settings-pane${currentSettingsTab === "connection" ? " active" : ""}" data-pane="connection">
+      <div class="form-group"><label for="modelSelect">Ollama model</label><input class="field" id="modelSelect" list="availableModels" maxlength="100" value="${escapeHtml(state.settings.model)}" placeholder="llama3.2"><datalist id="availableModels">${modelOptions}</datalist><p class="field-hint">Choose an installed model or enter its Ollama name. Example: <code>ollama pull llama3.2</code></p></div>
+      <div class="button-row"><button class="action-button" type="button" id="testConnection">Test Ollama connection</button><button class="secondary-button" type="button" id="refreshModels">Refresh models</button></div>
+      <div class="inline-status${statusMessage.startsWith("Connected") ? " ok" : statusMessage.startsWith("Could") || statusMessage.startsWith("No ") ? " error" : ""}" id="connectionDetails">${escapeHtml(statusMessage || "Checking the local Ollama service…")}</div>
+      <div class="notice"><strong>First time?</strong> Install Ollama from <a href="https://ollama.com/download" target="_blank" rel="noreferrer">ollama.com/download</a>, then run <code>ollama pull llama3.2</code> in a terminal. Keep Ollama running while you chat. Performance depends on your computer and model size.</div>
+      <div class="switch-row"><div class="switch-copy"><strong>Demo mode</strong><small>Use clearly labelled pre-written examples when Ollama is unavailable. These are not AI-generated.</small></div><button class="toggle" type="button" role="switch" aria-checked="${state.settings.demoMode}" data-setting="demoMode" aria-label="Demo mode"></button></div>
+      <p class="field-hint">Ollama is always preferred when connected. Demo replies run only when you switch this on and Ollama is offline.</p>
+    </div>`;
+    const personalizeTab = `<div class="settings-pane${currentSettingsTab === "personalize" ? " active" : ""}" data-pane="personalize">
+      <div class="field-row"><div class="form-group"><label for="userNameField">Your name (optional)</label><input class="field" id="userNameField" maxlength="50" value="${escapeHtml(state.settings.userName)}" placeholder="How should I address you?"></div>
+      <div class="form-group"><label for="assistantNameField">Assistant name</label><input class="field" id="assistantNameField" maxlength="50" value="${escapeHtml(state.settings.assistantName)}"></div></div>
+      <div class="form-group"><label for="personalitySelect">Personality</label><select class="select-field" id="personalitySelect">${Object.keys(window.OllamaService.modes).map((mode) => `<option${mode === state.settings.personality ? " selected" : ""}>${mode}</option>`).join("")}</select></div>
+      <div class="form-group"><label>Accent color</label><div class="swatches">${[["#8188ff","Indigo"],["#40c8e8","Cyan"],["#d27bff","Violet"],["#ff7fa8","Rose"],["#6bd5a5","Mint"],["#ffa766","Amber"]].map(([color,label]) => `<button class="swatch${color === state.settings.accent ? " active" : ""}" type="button" data-accent="${color}" title="${label}" aria-label="${label}" style="background:${color}"></button>`).join("")}</div></div>
+      <div class="field-row"><div class="form-group"><label for="themeSelect">Appearance</label><select class="select-field" id="themeSelect"><option value="dark"${state.settings.theme === "dark" ? " selected" : ""}>Dark</option><option value="light"${state.settings.theme === "light" ? " selected" : ""}>Light</option></select></div>
+      <div class="form-group"><label for="fontSizeSelect">Font size</label><select class="select-field" id="fontSizeSelect"><option value="small"${state.settings.fontSize === "small" ? " selected" : ""}>Small</option><option value="medium"${state.settings.fontSize === "medium" ? " selected" : ""}>Medium</option><option value="large"${state.settings.fontSize === "large" ? " selected" : ""}>Large</option></select></div></div>
+      <div class="button-row"><button class="action-button" id="savePersonalization" type="button">Save preferences</button></div>
+    </div>`;
+    const privacyTab = `<div class="settings-pane${currentSettingsTab === "privacy" ? " active" : ""}" data-pane="privacy">
+      <div class="switch-row"><div class="switch-copy"><strong>Smart memory</strong><small>Use your saved notes as context in Ollama chats. Nothing is saved automatically.</small></div><button class="toggle" type="button" role="switch" aria-checked="${state.settings.memoryEnabled}" data-setting="memoryEnabled" aria-label="Smart memory"></button></div>
+      <div class="switch-row"><div class="switch-copy"><strong>Speak AI replies</strong><small>Use your browser's built-in text-to-speech. Audio is not sent to a service.</small></div><button class="toggle" type="button" role="switch" aria-checked="${state.settings.speakReplies}" data-setting="speakReplies" aria-label="Speak replies"></button></div>
+      <div class="button-row"><button class="secondary-button" type="button" id="manageMemories">View and manage memories</button><button class="danger-button" type="button" id="clearLocalData">Clear all local data</button></div>
+      <p class="field-hint">Chats and memories are stored in this browser's local storage. Clearing browser data also removes them. Do not save passwords, financial details, or other sensitive information.</p>
+    </div>`;
+    const aboutTab = `<div class="settings-pane${currentSettingsTab === "about" ? " active" : ""}" data-pane="about">
+      <div class="about-card"><p><strong>JOSEANGELITON AI</strong><br>More Than AI. Your Digital Best Friend.</p><p>Ollama runs the selected language model on your computer. This app's local server forwards chat requests only to the configured Ollama address; it does not send your conversations to an external AI service.</p><p>Your preferences, conversation history, and saved memories stay in this browser's local storage. This lightweight interface loads typography from Google Fonts when internet access is available; system fonts are used otherwise.</p><p>Models can make mistakes. Check important information and use a model that fits your hardware.</p></div>
+    </div>`;
+    showModal("Your space, your way", "Connection, preferences, privacy and more", `<div class="settings-tabs">${[["connection","Connection"],["personalize","Personalize"],["privacy","Privacy"],["about","About"]].map(([tab,label]) => `<button class="settings-tab${currentSettingsTab === tab ? " active" : ""}" type="button" data-tab="${tab}">${label}</button>`).join("")}</div>${connectionTab}${personalizeTab}${privacyTab}${aboutTab}`);
+    wireSettingsModal();
+    updateConnectionDetails();
+  }
+
+  async function updateConnectionDetails() {
+    try {
+      modelNames = (await window.OllamaService.models()).map((model) => model.name).filter(Boolean);
+      if (modelNames.length) {
+        setConnection("connected", "Ollama ready · local");
+        const detail = $("#connectionDetails", elements.modal);
+        if (detail) {
+          detail.className = "inline-status ok";
+          detail.textContent = `Connected to local Ollama. ${modelNames.length} model${modelNames.length === 1 ? "" : "s"} available${hasSelectedModel() ? ` · ${state.settings.model} is ready` : ` · ${state.settings.model} is not downloaded yet`}.`;
+        }
+      } else {
+        setConnection("offline", "Ollama online · no models");
+        const detail = $("#connectionDetails", elements.modal);
+        if (detail) {
+          detail.className = "inline-status error";
+          detail.textContent = "Ollama is running, but no models are installed. Run: ollama pull llama3.2";
+        }
+      }
+      const suggestions = $("#availableModels", elements.modal);
+      if (suggestions) {
+        suggestions.innerHTML = modelNames.map((name) => `<option value="${escapeHtml(name)}"></option>`).join("");
+      }
+    } catch (error) {
+      setConnection(state.settings.demoMode ? "demo" : "offline", state.settings.demoMode ? "Demo mode · scripted replies" : "Ollama offline · setup needed");
+      const detail = $("#connectionDetails", elements.modal);
+      if (detail) {
+        detail.className = "inline-status error";
+        detail.textContent = "Could not reach Ollama at the configured address. Start Ollama and test again, or enable demo mode for scripted (not AI-generated) replies.";
+      }
+    }
+  }
+
+  function wireSettingsModal() {
+    $$("[data-tab]", elements.modal).forEach((tab) => tab.addEventListener("click", () => {
+      currentSettingsTab = tab.dataset.tab;
+      renderSettingsModal();
+    }));
+    $$("[data-setting]", elements.modal).forEach((toggle) => toggle.addEventListener("click", () => {
+      const key = toggle.dataset.setting;
+      state.settings[key] = !state.settings[key];
+      persist();
+      if (key === "demoMode" || key === "speakReplies") updateStatus();
+      renderSettingsModal();
+      render();
+    }));
+    $$("[data-accent]", elements.modal).forEach((swatch) => swatch.addEventListener("click", () => {
+      state.settings.accent = swatch.dataset.accent;
+      persist();
+      render();
+      renderSettingsModal();
+    }));
+    $("#testConnection", elements.modal).addEventListener("click", async () => {
+      const detail = $("#connectionDetails", elements.modal);
+      detail.className = "inline-status";
+      detail.textContent = "Testing local Ollama…";
+      await updateConnectionDetails();
+      if (hasSelectedModel()) toast("Ollama connection test succeeded.");
+    });
+    $("#refreshModels", elements.modal).addEventListener("click", updateConnectionDetails);
+    $("#modelSelect", elements.modal).addEventListener("change", (event) => {
+      state.settings.model = event.target.value.trim().slice(0, 100) || "llama3.2";
+      persist();
+      updateConnectionDetails();
+    });
+    $("#savePersonalization", elements.modal).addEventListener("click", () => {
+      state.settings.userName = $("#userNameField", elements.modal).value.trim().slice(0, 50);
+      state.settings.assistantName = $("#assistantNameField", elements.modal).value.trim().slice(0, 50) || "JOSEANGELITON AI";
+      state.settings.personality = $("#personalitySelect", elements.modal).value;
+      state.settings.theme = $("#themeSelect", elements.modal).value;
+      state.settings.fontSize = $("#fontSizeSelect", elements.modal).value;
+      persist();
+      render();
+      toast("Your preferences are saved on this device.");
+    });
+    $("#manageMemories", elements.modal).addEventListener("click", openMemories);
+    $("#clearLocalData", elements.modal).addEventListener("click", clearLocalData);
+  }
+
+  function openMemories(editId) {
+    modalKind = "memories";
+    const editing = state.memories.find((memory) => memory.id === editId);
+    const rows = state.memories.length ? state.memories.map((memory) => `<div class="memory-row"><div class="memory-text">${escapeHtml(memory.text)}<span class="memory-date">Saved ${new Date(memory.createdAt).toLocaleDateString()}</span></div><div class="memory-actions"><button class="mini-button" type="button" data-edit-memory="${escapeHtml(memory.id)}">Edit</button><button class="mini-button" type="button" data-delete-memory="${escapeHtml(memory.id)}">Delete</button></div></div>`).join("") : `<p class="field-hint">No saved memories yet. Add something useful below, only if you choose.</p>`;
+    showModal("Saved memories", "You decide what JOSEANGELITON AI can remember", `<p class="consent-note">Memories are saved only when you explicitly confirm below. They stay in this browser and may be included in local Ollama prompts when smart memory is on. Avoid sensitive details.</p><div class="switch-row"><div class="switch-copy"><strong>Use saved memories in chats</strong><small>Turn this off to keep saved notes out of prompts.</small></div><button class="toggle" type="button" role="switch" aria-checked="${state.settings.memoryEnabled}" data-memory-setting="true" aria-label="Use saved memories"></button></div><div class="memory-list">${rows}</div><div class="form-group"><label for="memoryText">${editing ? "Edit memory" : "Add a memory"}</label><textarea class="memory-input" id="memoryText" maxlength="500" placeholder="For example: I prefer explanations with practical examples.">${editing ? escapeHtml(editing.text) : ""}</textarea></div><label class="consent-note"><input id="memoryConsent" type="checkbox"> I confirm I want to save this note on this device.</label><div class="button-row"><button class="action-button" type="button" id="saveMemory">${editing ? "Update memory" : "Save memory"}</button>${editing ? `<button class="secondary-button" type="button" id="cancelMemoryEdit">Cancel edit</button>` : ""}</div>`);
+    $$("[data-memory-setting]", elements.modal).forEach((toggle) => toggle.addEventListener("click", () => {
+      state.settings.memoryEnabled = !state.settings.memoryEnabled;
+      persist();
+      openMemories(editId);
+    }));
+    $$("[data-edit-memory]", elements.modal).forEach((button) => button.addEventListener("click", () => openMemories(button.dataset.editMemory)));
+    $$("[data-delete-memory]", elements.modal).forEach((button) => button.addEventListener("click", () => {
+      if (!window.confirm("Delete this saved memory from this browser?")) return;
+      state.memories = state.memories.filter((memory) => memory.id !== button.dataset.deleteMemory);
+      persist();
+      openMemories();
+    }));
+    $("#saveMemory", elements.modal).addEventListener("click", () => {
+      const text = $("#memoryText", elements.modal).value.trim();
+      if (!text) {
+        toast("Write a short memory before saving.", "error");
+        return;
+      }
+      if (!$("#memoryConsent", elements.modal).checked) {
+        toast("Please confirm that you want to save this note.", "error");
+        return;
+      }
+      if (editing) editing.text = text;
+      else state.memories.unshift({ id: crypto.randomUUID(), text, createdAt: Date.now() });
+      persist();
+      openMemories();
+      toast(editing ? "Memory updated." : "Memory saved on this device.");
+    });
+    const cancelEdit = $("#cancelMemoryEdit", elements.modal);
+    if (cancelEdit) cancelEdit.addEventListener("click", () => openMemories());
+  }
+
+  function openPersonalityPicker() {
+    modalKind = "personality";
+    const descriptions = {
+      Friendly: "Warm, supportive and easy to talk to.", Funny: "Witty and playful, with a light touch.",
+      Savage: "Cheeky roasts, never cruel.", Romantic: "Sweet and affectionate, with healthy boundaries.",
+      Professional: "Focused, polished and business-ready.", Motivational: "Encouraging, practical momentum.",
+      Teacher: "Clear explanations that meet you where you are.",
+    };
+    showModal("Choose your vibe", "Your choice changes the local AI's instructions", `<div class="personality-list">${Object.entries(descriptions).map(([name,description]) => `<button class="personality-option${name === state.settings.personality ? " active" : ""}" type="button" data-personality="${name}"><strong>${name}</strong><small>${description}</small></button>`).join("")}</div>`);
+    $$("[data-personality]", elements.modal).forEach((button) => button.addEventListener("click", () => {
+      state.settings.personality = button.dataset.personality;
+      persist();
+      render();
+      closeModal();
+      toast(`${button.dataset.personality} mode is on.`);
+    }));
+  }
+
+  function openAbout() {
+    modalKind = "about";
+    showModal("A little more about us", "JOSEANGELITON AI · More Than AI. Your Digital Best Friend.", `<div class="about-card"><p>Ollama conversations are processed locally by the model running on your computer. This app proxies requests only to your configured Ollama server; no chat content is sent to an external AI service.</p><p>Your conversations, preferences and memories are saved in this browser's local storage. Anyone using this browser profile may be able to access them. You can delete them in Settings → Privacy.</p><p>Demo mode, when explicitly enabled, returns fixed example text. It is not connected to an AI model and is labelled in the conversation. Browser speech recognition availability varies by browser; when available it may use your browser's configured speech service.</p></div><div class="notice">Need Ollama? Install it from <a href="https://ollama.com/download" target="_blank" rel="noreferrer">ollama.com/download</a>, then run <code>ollama pull llama3.2</code>.</div>`);
+  }
+
+  function manageChat(id) {
+    const chat = state.chats.find((item) => item.id === id);
+    if (!chat) return;
+    showModal("Manage conversation", chat.title, `<div class="form-group"><label for="renameChat">Conversation name</label><input class="field" id="renameChat" maxlength="80" value="${escapeHtml(chat.title)}"></div><div class="button-row"><button class="action-button" type="button" id="saveChatName">Save name</button><button class="danger-button" type="button" id="deleteChat">Delete conversation</button></div>`);
+    $("#saveChatName", elements.modal).addEventListener("click", () => {
+      const title = $("#renameChat", elements.modal).value.trim();
+      if (!title) return toast("Conversation name cannot be empty.", "error");
+      chat.title = title.slice(0, 80);
+      chat.updatedAt = Date.now();
+      persist();
+      renderChatList();
+      closeModal();
+      toast("Conversation renamed.");
+    });
+    $("#deleteChat", elements.modal).addEventListener("click", () => {
+      if (!window.confirm(`Delete “${chat.title}” and its local history?`)) return;
+      state.chats = state.chats.filter((item) => item.id !== id);
+      if (state.activeChatId === id) state.activeChatId = null;
+      persist();
+      closeModal();
+      render();
+      toast("Conversation deleted from this browser.");
+    });
+  }
+
+  function clearCurrentChat() {
+    const chat = activeChat();
+    if (!chat || !window.confirm("Clear all messages in this conversation? This cannot be undone.")) return;
+    chat.messages = [];
+    chat.title = "New conversation";
+    chat.updatedAt = Date.now();
+    persist();
+    render();
+    toast("Conversation cleared.");
+  }
+
+  function clearLocalData() {
+    if (!window.confirm("Permanently remove all chats, memories and preferences saved by this app in this browser?")) return;
+    window.AppStorage.clear();
+    state.chats = [];
+    state.activeChatId = null;
+    state.memories = [];
+    state.settings = {
+      model: "llama3.2", assistantName: "JOSEANGELITON AI", userName: "",
+      personality: "Friendly", theme: "dark", accent: "#8188ff",
+      fontSize: "medium", memoryEnabled: true, speakReplies: false, demoMode: false,
+    };
+    persist();
+    closeModal();
+    render();
+    updateStatus();
+    toast("Local app data cleared.");
+  }
+
+  async function copyMessage(text) {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast("Response copied.");
+    } catch (error) {
+      toast("Could not access the clipboard. Select and copy the response instead.", "error");
+    }
+  }
+
+  function demoReply(prompt) {
+    const text = prompt.toLowerCase();
+    if (/\bjoke|funny|laugh\b/.test(text)) return "Why did the computer go to the doctor? It had a virus — and it was tired of people telling it to just restart. 😄\n\n(That was a pre-written demo reply, not generated by an AI model.)";
+    if (/\broast|savage\b/.test(text)) return "You have the kind of confidence usually reserved for someone who clicks “remind me tomorrow” on a software update for six straight months. Respectfully. 😄\n\n(That was a pre-written demo reply, not generated by an AI model.)";
+    if (/\bstud|explain|school|learn|subject\b/.test(text)) return "Happy to be your study buddy! Pick one idea that feels confusing, and we'll break it into small pieces with a simple example. What subject and level are you working on?\n\n(That was a pre-written demo reply, not generated by an AI model.)";
+    if (/\bbusiness|idea|brainstorm\b/.test(text)) return "Let's brainstorm: a neighborhood skill-swap app, a subscription toolkit for a niche hobby, or a service that helps local shops make short-form content. Tell me what you enjoy and I'll tailor the ideas.\n\n(That was a pre-written demo reply, not generated by an AI model.)";
+    if (/\bplan|task|day|productiv\b/.test(text)) return "Try a tiny planning reset: write down everything on your mind, circle the one task that matters most, then give it a focused 25-minute block. What needs your attention today?\n\n(That was a pre-written demo reply, not generated by an AI model.)";
+    if (/\bemail|message|write\b/.test(text)) return "I can help shape that message. A good starting point is: “Hi [name], I'm reaching out about [topic]. Would you be available to [next step]? Thanks, [your name].” Share the context and tone you'd like.\n\n(That was a pre-written demo reply, not generated by an AI model.)";
+    return "I'm here with you. Tell me a little more about what's on your mind, and we can take it one step at a time.\n\n(That was a pre-written demo reply, not generated by an AI model.)";
+  }
+
+  function updateChatTitle(chat, firstMessage) {
+    if (chat.title !== "New conversation") return;
+    chat.title = firstMessage.replace(/\s+/g, " ").trim().slice(0, 40) || "New conversation";
+  }
+
+  function appendMessage(chat, role, content, options = {}) {
+    chat.messages.push({ id: crypto.randomUUID(), role, content, createdAt: Date.now(), ...options });
+    chat.updatedAt = Date.now();
+    persist();
+  }
+
+  async function submitMessage(textValue) {
+    const text = String(textValue || "").trim();
+    if (!text || busy) return;
+    if (text.length > MAX_MESSAGE_LENGTH) {
+      toast(`Messages must be ${MAX_MESSAGE_LENGTH.toLocaleString()} characters or fewer.`, "error");
+      return;
+    }
+    let chat = activeChat();
+    if (!chat) {
+      newChat();
+      chat = activeChat();
+    }
+    updateChatTitle(chat, text);
+    appendMessage(chat, "user", text);
+    elements.input.value = "";
+    resizeInput();
+    busy = true;
+    elements.typing.classList.remove("hidden");
+    $("#typingLabel").textContent = state.settings.demoMode ? "Preparing demo reply" : `${state.settings.assistantName || "JOSEANGELITON AI"} is thinking`;
+    render();
+    try {
+      let response;
+      if (state.settings.demoMode) {
+        try {
+          modelNames = (await window.OllamaService.models()).map((model) => model.name).filter(Boolean);
+        } catch (error) {
+          modelNames = [];
+        }
+      }
+      if (state.settings.demoMode && !hasSelectedModel()) {
+        response = demoReply(text);
+        appendMessage(chat, "assistant", response, { demo: true });
+      } else {
+        const replies = await window.OllamaService.chat({
+          model: state.settings.model || "llama3.2",
+          messages: chat.messages.filter((message) => !message.error).map(({ role, content }) => ({ role, content })),
+          settings: state.settings,
+          memories: state.settings.memoryEnabled ? state.memories : [],
+        });
+        response = replies.trim();
+        if (!response) throw new Error("The selected model returned an empty reply. Try sending your message again.");
+        appendMessage(chat, "assistant", response);
+        if (state.settings.speakReplies) speak(response);
+      }
+    } catch (error) {
+      appendMessage(chat, "assistant", `I couldn't reach your local AI just now. ${error.message} Open Settings → Connection to test Ollama or choose demo mode.`, { error: true });
+      setConnection("offline", state.settings.demoMode ? "Demo mode available · Ollama offline" : "Ollama offline · setup needed");
+    } finally {
+      busy = false;
+      elements.typing.classList.add("hidden");
+      render();
+      renderChatList();
+    }
+  }
+
+  async function regenerateResponse() {
+    const chat = activeChat();
+    if (!chat || busy) return;
+    const lastAssistant = chat.messages[chat.messages.length - 1];
+    if (lastAssistant && lastAssistant.role === "assistant") chat.messages.pop();
+    const previousError = chat.messages[chat.messages.length - 1];
+    if (previousError && previousError.error) chat.messages.pop();
+    const latestUser = [...chat.messages].reverse().find((message) => message.role === "user");
+    if (!latestUser) return;
+    await submitMessageForRegeneration(chat);
+  }
+
+  async function submitMessageForRegeneration(chat) {
+    busy = true;
+    elements.typing.classList.remove("hidden");
+    $("#typingLabel").textContent = `${state.settings.assistantName || "JOSEANGELITON AI"} is thinking`;
+    render();
+    try {
+      if (state.settings.demoMode && !hasSelectedModel()) {
+        appendMessage(chat, "assistant", demoReply([...chat.messages].reverse().find((item) => item.role === "user").content), { demo: true });
+      } else {
+        const response = await window.OllamaService.chat({
+          model: state.settings.model,
+          messages: chat.messages.map(({ role, content }) => ({ role, content })),
+          settings: state.settings,
+          memories: state.settings.memoryEnabled ? state.memories : [],
+        });
+        appendMessage(chat, "assistant", response.trim());
+        if (state.settings.speakReplies) speak(response);
+      }
+    } catch (error) {
+      appendMessage(chat, "assistant", `I couldn't regenerate that reply. ${error.message} Check the Ollama connection in Settings.`, { error: true });
+    } finally {
+      busy = false;
+      elements.typing.classList.add("hidden");
+      render();
+    }
+  }
+
+  function resizeInput() {
+    elements.input.style.height = "auto";
+    elements.input.style.height = `${Math.min(elements.input.scrollHeight, 150)}px`;
+    elements.send.disabled = busy || !elements.input.value.trim();
+  }
+
+  function speak(text) {
+    if (!("speechSynthesis" in window)) {
+      toast("Text-to-speech is not supported in this browser.", "error");
+      return;
+    }
     window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = 1;
+    window.speechSynthesis.speak(utterance);
   }
-});
 
-showWelcome();
-updateProfileUI(null);
-configureFirebase();
+  function startVoiceInput() {
+    const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!Recognition) {
+      toast("Voice input is not supported by this browser. You can type your message instead.", "error");
+      return;
+    }
+    if (!speechRecognition) {
+      speechRecognition = new Recognition();
+      speechRecognition.lang = navigator.language || "en-US";
+      speechRecognition.interimResults = true;
+      speechRecognition.continuous = false;
+      speechRecognition.onresult = (event) => {
+        const transcript = Array.from(event.results).map((result) => result[0].transcript).join("");
+        elements.input.value = transcript;
+        resizeInput();
+      };
+      speechRecognition.onerror = (event) => {
+        toast(event.error === "not-allowed" ? "Microphone permission was denied. Allow microphone access in browser settings." : "Voice input stopped. Please try again or type your message.", "error");
+        $("#voiceInput").classList.remove("enabled");
+      };
+      speechRecognition.onend = () => $("#voiceInput").classList.remove("enabled");
+    }
+    try {
+      $("#voiceInput").classList.add("enabled");
+      speechRecognition.start();
+    } catch (error) {
+      $("#voiceInput").classList.remove("enabled");
+      toast("Voice input is already active. Try again in a moment.", "error");
+    }
+  }
+
+  async function updateStatus() {
+    try {
+      modelNames = (await window.OllamaService.models()).map((model) => model.name).filter(Boolean);
+      if (hasSelectedModel()) setConnection("connected", `Ollama ready · ${state.settings.model}`);
+      else if (modelNames.length) setConnection("connected", `Ollama online · ${modelNames.length} model${modelNames.length === 1 ? "" : "s"}`);
+      else setConnection("offline", "Ollama online · download a model");
+    } catch (error) {
+      setConnection(state.settings.demoMode ? "demo" : "offline", state.settings.demoMode ? "Demo mode · scripted replies" : "Ollama offline · setup needed");
+    }
+  }
+
+  function openSidebar() {
+    elements.sidebar.classList.add("open");
+    elements.sidebarScrim.classList.add("open");
+  }
+  function closeSidebar() {
+    elements.sidebar.classList.remove("open");
+    elements.sidebarScrim.classList.remove("open");
+  }
+
+  elements.form.addEventListener("submit", (event) => {
+    event.preventDefault();
+    submitMessage(elements.input.value);
+  });
+  elements.input.addEventListener("input", resizeInput);
+  elements.input.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
+      event.preventDefault();
+      submitMessage(elements.input.value);
+    }
+  });
+  $("#newChat").addEventListener("click", newChat);
+  $("#clearChatButton").addEventListener("click", clearCurrentChat);
+  $("#openSettings").addEventListener("click", () => openSettings());
+  $("#settingsIcon").addEventListener("click", () => openSettings());
+  $("#modeButton").addEventListener("click", openPersonalityPicker);
+  $("#themeToggle").addEventListener("click", () => {
+    state.settings.theme = state.settings.theme === "dark" ? "light" : "dark";
+    persist();
+    render();
+  });
+  $("#memoryShortcut").addEventListener("click", openMemories);
+  $("#memoryButton").addEventListener("click", openMemories);
+  $("#aboutLink").addEventListener("click", openAbout);
+  $("#setupButton").addEventListener("click", () => openSettings("connection"));
+  $("#voiceInput").addEventListener("click", startVoiceInput);
+  $("#speakToggle").addEventListener("click", () => {
+    state.settings.speakReplies = !state.settings.speakReplies;
+    persist();
+    render();
+    if (!state.settings.speakReplies && "speechSynthesis" in window) window.speechSynthesis.cancel();
+    if (state.settings.speakReplies && !("speechSynthesis" in window)) toast("Text-to-speech is not supported in this browser.", "error");
+    else toast(state.settings.speakReplies ? "Spoken replies are on." : "Spoken replies are off.");
+  });
+  $("#chatSearch").addEventListener("input", renderChatList);
+  $("#openSidebar").addEventListener("click", openSidebar);
+  $("#closeSidebar").addEventListener("click", closeSidebar);
+  elements.sidebarScrim.addEventListener("click", closeSidebar);
+  $$(".suggestion-card").forEach((card) => card.addEventListener("click", () => submitMessage(card.dataset.prompt)));
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      closeModal();
+      closeSidebar();
+    }
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
+      event.preventDefault();
+      newChat();
+    }
+    if (event.key === "/" && !["INPUT", "TEXTAREA"].includes(document.activeElement.tagName)) {
+      event.preventDefault();
+      $("#chatSearch").focus();
+    }
+  });
+
+  render();
+  updateStatus();
+  window.setInterval(updateStatus, 30000);
+})();

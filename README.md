@@ -1,94 +1,82 @@
 # JOSEANGELITON AI
 
-**Your Brain. Your Buddy. Your AI.**
+**More Than AI. Your Digital Best Friend.**
 
-A responsive browser-based assistant with a friendly branded interface, six prompt-guided tools, Firebase email/password authentication, private Firestore conversation storage, browser voice controls, and a server-side AI API integration. This repository currently contains a web application, not Flutter Android/iOS projects.
+A local-first AI companion with chat history, personality modes, editable memories, optional voice features, and a responsive interface. Ollama is the primary chat engine. The app has no paid API or third-party AI dependency.
 
-## What works (when configured)
+## What you need
 
-- Home, Chat, Explore, History, and Profile views, with responsive desktop/mobile navigation and a dark/light theme.
-- JOSEANGELITON Study, Writer, Creator, Business, Code, and Life prompt modes.
-- Email/password sign-up and sign-in, Firebase password-reset email, and sign-out.
-- Authenticated chat requests sent from the server to an OpenAI-compatible Chat Completions endpoint. The AI API key is read only by the backend.
-- Conversation history and deletion, scoped to the verified Firebase user.
-- Copy and regenerate responses, browser speech-to-text, text-to-speech, and an opt-in voice conversation mode where the browser supports those APIs.
-- Request validation, Firebase ID-token verification, security headers, origin checks, and in-memory API/chat rate limits.
+- Node.js 18 or newer
+- [Ollama](https://ollama.com/download) for real local AI conversations (optional for exploring the labelled demo mode)
+- A downloaded Ollama model and enough memory/compute for that model
 
-## Not implemented yet
+## Run it on Windows
 
-- Image/file generation, profile picture uploads, native Flutter apps, Google/Apple login, and live response streaming.
-- Paid subscriptions or checkout. The UI explicitly does not simulate a purchase. Add a verified payment provider and server-side entitlement checks before enabling premium access.
-- The “Free” label is informational: there is no billing or product quota enforcement. Current API rate limits are abuse protection, not subscription limits.
-- Native voice services are not bundled. Browser speech-recognition availability varies; microphone access generally requires HTTPS (localhost is allowed by modern browsers).
-
-Do not treat AI output as professional, medical, legal, or financial advice. The assistant does not execute generated code or create image files.
-
-## Requirements
-
-- Node.js 20 or later.
-- A Firebase project with Authentication (Email/Password) and Cloud Firestore enabled.
-- Firebase Admin credentials for the server (Application Default Credentials or a service-account JSON file).
-- An API key for an OpenAI-compatible chat-completions service.
-
-## Setup
-
-1. Install packages:
+1. Install Node.js from [nodejs.org](https://nodejs.org/) if it is not already installed.
+2. Install Ollama from [ollama.com/download](https://ollama.com/download) and start it.
+3. Open PowerShell in this project folder and download a model:
 
    ```powershell
-   npm install
+   ollama pull llama3.2
    ```
 
-2. Copy `.env.example` to `.env` and set `FIREBASE_API_KEY`, `FIREBASE_AUTH_DOMAIN`, `FIREBASE_PROJECT_ID`, and `FIREBASE_APP_ID` from the Firebase console's Web app configuration. These web configuration values are public identifiers, not server secrets. Restrict the Firebase API key to the required Firebase APIs and your deployed domains.
+   You can use another Ollama model; select its installed name in **Settings → Connection**. Larger models need more system memory and may run more slowly.
 
-3. In Firebase Console:
-   - Create a Firebase project and register a Web app.
-   - Enable **Authentication → Sign-in method → Email/Password**.
-   - Create a Cloud Firestore database.
-   - Deploy the restrictive rules and required query index from this project:
-
-     ```powershell
-     firebase deploy --only firestore:rules,firestore:indexes
-     ```
-
-   The command requires the Firebase CLI, a logged-in Firebase account, and a `.firebaserc` or `--project <project-id>` option. The rules deny direct client access; the server uses Firebase Admin after checking each user's ID token and conversation ownership.
-
-4. Configure server-side Firebase Admin credentials. Prefer Application Default Credentials in production. For local development, create a service account with only the required Firestore access, store its JSON outside the project, and set `GOOGLE_APPLICATION_CREDENTIALS` to its absolute path. Never commit the service-account JSON or `.env`.
-
-5. Add your AI key to `OPENAI_API_KEY`; optionally set `OPENAI_MODEL` and `OPENAI_BASE_URL` for a compatible provider. Never put this key in browser code or Firebase's public web configuration.
-
-6. Set `APP_ORIGIN` to the exact origin used to open the app (for example `http://localhost:3000`), then start the server:
+4. Start the app:
 
    ```powershell
-   npm start
+   npm run start
    ```
 
-   Open `http://localhost:3000`. To restart automatically during development, use `npm run dev`.
+5. Open [http://127.0.0.1:4173](http://127.0.0.1:4173).
 
-`npm run check` checks JavaScript syntax with Node. The browser imports the Firebase Web SDK from Google's CDN, so users need network access to that service. Configure Firebase Authentication's authorized domains for your deployed hostname.
+No npm packages need to be installed. The included Node server serves the app and forwards requests to Ollama at `http://127.0.0.1:11434`, avoiding browser CORS configuration. It binds to loopback only.
 
-## Publish on Render
+To use a different local Ollama address or web port:
 
-This project includes a `render.yaml` Blueprint. Push the project to a Git repository, connect that repository in Render, and create a Blueprint from it. During setup, enter the required values as Render environment secrets—especially `OPENAI_API_KEY` and the Firebase Admin service-account JSON in `FIREBASE_SERVICE_ACCOUNT_JSON`. Never commit these values. Once Render assigns a public service URL, set `APP_ORIGIN` to that exact HTTPS origin and add the hostname to Firebase Authentication's authorized domains. Deploy or redeploy after setting the variables.
+```powershell
+$env:OLLAMA_URL = "http://127.0.0.1:11434"
+$env:PORT = "4173"
+npm run start
+```
 
-The Render service is not live until a repository is connected and those environment values are supplied.
+Keep the terminal and Ollama running while you use the app. Press `Ctrl+C` in the terminal to stop the web server.
 
-## Configuration and security notes
+## If you don't have Ollama yet
 
-- `FIREBASE_API_KEY`, auth domain, project ID, and app ID are sent to the browser from `/api/config`; Firebase web-app config is not an authorization boundary. Restrict the API key and configure authorized domains.
-- `OPENAI_API_KEY` and Firebase Admin credentials stay on the backend. Keep `.env`, service-account files, and production secrets out of source control.
-- Firestore client rules deny access to the `conversations` collection. Every API data operation requires a verified Firebase ID token and checks the conversation owner.
-- Conversation documents are limited to the most recent 40 messages. Chat input is limited to 8,000 characters; the API keeps at most 24 prior messages in model context.
-- API abuse limits use in-memory storage and reset on process restart. For multiple server instances, replace them with a shared store (such as Redis) and configure trusted proxy hops accurately. Avoid enabling `TRUST_PROXY` unless the app is behind a known proxy.
-- AI provider request/retention practices are determined by that provider. Users should avoid sending sensitive personal information.
-- Configure Firebase Auth email templates and production password-reset redirect URLs before launch.
-- Deploy over HTTPS, restrict origins, monitor provider spend, and review applicable privacy, data-retention, and age requirements before production use.
+The welcome screen and **Settings → Connection** show setup instructions when Ollama cannot be reached. You can turn on **Demo mode** there to explore the interface. Demo replies are fixed, pre-written examples and are explicitly marked in the chat; they are **not generated by an AI model**. When Ollama is reachable and the selected model is installed, Ollama remains the chat engine.
 
-## Project files
+Use **Test Ollama connection** in settings to check the local service. If Ollama is running but your model is missing, run `ollama pull llama3.2` (or install the model you selected). A model's speed and response quality depend on your hardware and the model itself.
 
-- `index.html`, `styles.css`, `app.js` — browser application.
-- `moranga-nyangau.jpeg` — founder portrait displayed on the Home view.
-- `server.js` — Express API, authentication verification, rate limiting, Firestore access, and server-side AI requests.
-- `render.yaml` — Render web-service Blueprint for deployment.
-- `firestore.rules`, `firestore.indexes.json` — Firestore rules and conversation-history query index.
-- `.env.example` — names of required environment variables; contains no credentials.
+## Features
 
+- Ollama `/api/chat` conversations with configurable local model, connection checks, errors, and per-personality system instructions
+- Friendly, Funny, Savage (playful), Romantic (with boundaries), Professional, Motivational, and Teacher personalities
+- Local chat history, conversation search, new/rename/delete chats, clear-chat confirmation, copy, and regenerate
+- Editable, deletable saved memories with explicit consent and a memory-use switch; notes are never saved automatically
+- Browser speech recognition when supported, plus browser text-to-speech
+- Light/dark appearance, accent colors, font size, and profile preferences
+- Responsive layout, keyboard shortcuts (`Ctrl+K` for a new conversation and `/` to search), and local demo mode
+
+## Privacy
+
+Ollama processes model prompts on the computer running Ollama. This app sends chat requests only to the Ollama address configured on its local server; it does not send conversations to an external AI service. App preferences, chats, and memories are stored in this browser's local storage, not encrypted, and can be removed in **Settings → Privacy → Clear all local data**. Avoid saving sensitive information. Browser speech-recognition implementations may use the browser's configured speech service; support and behavior vary by browser. The interface may load fonts from Google Fonts when online; the app does not send chat content to that service.
+
+## Troubleshooting
+
+- **Ollama offline:** Start or install Ollama, then use **Test Ollama connection**.
+- **Model missing:** Run `ollama pull llama3.2`, or choose an installed model in settings.
+- **Port already in use:** Set `$env:PORT = "4174"` before `npm run start`, then visit `http://127.0.0.1:4174`.
+- **Voice input unavailable:** Browser speech recognition is not supported everywhere. Type into the message box instead.
+- **No sound:** Check the browser and system volume. Text-to-speech uses browser-provided voices.
+
+## Publish the public demo on GitHub Pages
+
+The public Pages build is intentionally configured to keep Ollama private. On a GitHub Pages hostname, **demo mode starts enabled** and only fixed, explicitly labelled examples are offered. The public copy does not expose or proxy a visitor's computer.
+
+1. Create a GitHub repository and push this project to its `main` branch.
+2. In the repository, open **Settings → Pages**.
+3. Choose **GitHub Actions** as the Pages source.
+4. Push a commit or run **Deploy JOSEANGELITON AI to GitHub Pages** from the Actions tab.
+
+The included `.github/workflows/pages.yml` workflow publishes the static interface. Users who run the app locally can stop demo mode after installing Ollama and keep real local AI enabled.
