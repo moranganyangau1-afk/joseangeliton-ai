@@ -1,0 +1,9 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // All application data is accessed through the authenticated server API.
+    match /conversations/{conversationId} {
+      allow read, write: if false;
+    }
+  }
+}

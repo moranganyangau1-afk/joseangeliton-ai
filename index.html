@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#090812" />
+    <meta name="description" content="Meet JOSEANGELITON AI — your brain, your buddy, your AI." />
+    <title>JOSEANGELITON AI — Your Brain. Your Buddy. Your AI.</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" id="sidebar">
+        <a class="brand" href="#" data-view="Home" aria-label="JOSEANGELITON AI home">
+          <span class="brand-mark" aria-hidden="true"><span>✦</span><i>♛</i></span>
+          <span class="brand-name">JOSEANGELITON<small>AI ASSISTANT</small></span>
+        </a>
+        <button class="new-chat" id="newChat"><span>＋</span> New conversation <kbd>⌘ K</kbd></button>
+        <nav class="nav" aria-label="Main navigation">
+          <button class="nav-item active" data-view="Home"><span class="nav-icon">⌂</span> Home</button>
+          <button class="nav-item" data-view="Chat"><span class="nav-icon">✳</span> Chat</button>
+          <button class="nav-item" data-view="Explore"><span class="nav-icon">◈</span> Explore</button>
+          <button class="nav-item" data-view="History"><span class="nav-icon">◷</span> History</button>
+        </nav>
+        <div class="sidebar-label">YOUR TOOLS</div>
+        <div class="tool-nav">
+          <button class="tool-link" data-tool="Study"><span class="tool-dot violet"></span> Study</button>
+          <button class="tool-link" data-tool="Writer"><span class="tool-dot blue"></span> Writer</button>
+          <button class="tool-link" data-tool="Creator"><span class="tool-dot pink"></span> Creator</button>
+          <button class="tool-link" data-tool="Business"><span class="tool-dot amber"></span> Business</button>
+          <button class="tool-link" data-tool="Code"><span class="tool-dot green"></span> Code</button>
+          <button class="tool-link" data-tool="Life"><span class="tool-dot cyan"></span> Life</button>
+        </div>
+        <div class="sidebar-spacer"></div>
+        <div class="plan-card">
+          <div class="plan-top"><span class="sparkle">✦</span><strong>Free plan</strong><span class="plan-badge">FREE</span></div>
+          <p>Upgrade options are coming soon. No payment is collected in this preview.</p>
+          <button id="planInfo">Explore plans <span>→</span></button>
+        </div>
+        <button class="profile-button" id="profileButton">
+          <span class="avatar" id="avatarInitials">JA</span><span class="profile-copy"><strong id="profileName">Guest</strong><small id="profileEmail">Sign in to sync your chats</small></span><span class="profile-more">···</span>
+        </button>
+      </aside>
+
+      <main class="main">
+        <header class="topbar">
+          <button class="icon-button menu-button" id="menuButton" aria-label="Open menu">☰</button>
+          <div class="breadcrumbs"><span>JOSEANGELITON AI</span><b>/</b><strong id="crumbTitle">Home</strong></div>
+          <div class="topbar-actions"><span class="secure-label"><i></i> Private by design</span><button class="icon-button" id="themeButton" aria-label="Toggle light theme">☼</button><button class="sign-in-button" id="signInButton">Sign in <span>↗</span></button></div>
+        </header>
+
+        <section class="view active" id="homeView" data-view-panel="Home">
+          <div class="hero">
+            <div class="hero-copy">
+              <div class="welcome-pill"><span class="pulse"></span> YOUR PERSONAL AI, READY WHEN YOU ARE</div>
+              <h1>Your brain.<br />Your buddy. <span>Your AI.</span></h1>
+              <p>Big idea, tiny question, or “help, my code is on fire” — I’m right here. What are we figuring out today?</p>
+              <div class="hero-buttons"><button class="button-primary" data-start-chat>Let’s talk <span>↗</span></button><button class="button-quiet" data-view="Explore">Meet your AI <span>↓</span></button></div>
+              <div class="hero-note"><span class="avatar-mini">✦</span><span>Curious by nature. Helpful by design.</span><span class="note-spark">✧</span></div>
+            </div>
+            <div class="hero-art" aria-hidden="true"><div class="orbit orbit-one"></div><div class="orbit orbit-two"></div><div class="robot-glow"></div><div class="robot"><div class="crown"><i></i><i></i><i></i></div><div class="antenna"></div><div class="robot-head"><div class="head-shine"></div><div class="robot-eyes"><i></i><i></i></div><div class="robot-mouth"></div><div class="ear ear-left"></div><div class="ear ear-right"></div></div><div class="robot-neck"></div><div class="robot-body"><div class="body-light">✦</div><div class="body-line"></div></div></div><div class="floating-chip chip-one">✧ Always learning</div><div class="floating-chip chip-two"><span>●</span> Here for you</div></div>
+          </div>
+
+          <div class="section-heading"><div><p class="eyebrow">A LITTLE HELP GOES A LONG WAY</p><h2>What’s on your mind?</h2></div><button class="text-link" data-view="Explore">All tools <span>→</span></button></div>
+          <div class="quick-grid">
+            <button class="quick-card study-card" data-tool="Study"><span class="card-icon">✎</span><span class="card-arrow">↗</span><strong>Study smarter</strong><small>Make tricky topics click.</small></button>
+            <button class="quick-card writer-card" data-tool="Writer"><span class="card-icon">⌁</span><span class="card-arrow">↗</span><strong>Find the words</strong><small>Drafts, emails, fresh ideas.</small></button>
+            <button class="quick-card code-card" data-tool="Code"><span class="card-icon">&lt;/&gt;</span><span class="card-arrow">↗</span><strong>Build something</strong><small>Code, debug, and keep going.</small></button>
+            <button class="quick-card business-card" data-tool="Business"><span class="card-icon">↗</span><span class="card-arrow">↗</span><strong>Grow an idea</strong><small>Turn “what if” into “what’s next.”</small></button>
+          </div>
+          <section class="founder-card" aria-labelledby="founderName">
+            <img class="founder-photo" src="moranga-nyangau.jpeg" alt="Moranga Nyangau" />
+            <div class="founder-copy">
+              <p class="eyebrow">LEADERSHIP SPOTLIGHT</p>
+              <h2 id="founderName">Moranga Nyangau</h2>
+              <p>Founder &amp; CEO of <strong>JERK SULUTIONS COMPANY</strong></p>
+            </div>
+            <span class="founder-mark" aria-hidden="true">✦</span>
+          </section>
+          <div class="bottom-callout"><span class="callout-star">✳</span><div><strong>One assistant, lots of possibilities.</strong><p>Explore tools for creativity, work, learning, and everyday life.</p></div><button class="button-outline" data-view="Explore">Explore JOSEANGELITON AI <span>→</span></button></div>
+        </section>
+
+        <section class="view chat-view" id="chatView" data-view-panel="Chat" aria-label="Chat">
+          <div class="chat-layout">
+            <div class="chat-main">
+              <div class="chat-top"><div class="assistant-identity"><span class="assistant-avatar">✦</span><div><strong>JOSEANGELITON <span>AI</span></strong><small><i></i> Your buddy is ready</small></div></div><div class="chat-top-actions"><button class="chat-voice" id="voiceModeButton" aria-pressed="false">♩ Voice mode</button><button class="chat-clear" id="clearChat">＋ New chat</button></div></div>
+              <div class="messages" id="messages" aria-live="polite">
+                <div class="welcome-message" id="welcomeMessage"><span class="welcome-star">✳</span><h2>Hey there. What are we<br />making happen today?</h2><p>Ask me anything — or pick a little nudge to get started.</p><div class="suggestion-row"><button data-prompt="Explain a topic I find confusing in simple terms.">Explain something</button><button data-prompt="Help me brainstorm a few creative ideas.">Brainstorm ideas</button><button data-prompt="Help me make a simple plan for today.">Plan my day</button></div></div>
+              </div>
+              <div class="composer-wrap"><form class="composer" id="chatForm"><textarea id="chatInput" rows="1" maxlength="8000" placeholder="Message JOSEANGELITON AI..." aria-label="Message JOSEANGELITON AI"></textarea><div class="composer-footer"><div class="composer-tools"><button type="button" class="composer-tool" id="voiceButton" aria-label="Start voice input" title="Voice input">♩</button><span class="composer-hint">A good question is a great start</span></div><button class="send-button" id="sendButton" type="submit" aria-label="Send message">↑</button></div></form><p class="disclaimer">AI can make mistakes. Check important information. Your chats are private to your account.</p></div>
+            </div>
+            <aside class="chat-aside"><div class="aside-card"><span class="aside-icon">✦</span><p class="eyebrow">A GOOD PLACE TO START</p><h3>Give me the messy version.</h3><p>Rough notes, half-baked ideas, confusing homework — no need to have it all figured out first.</p></div><div class="aside-tip"><span>✧</span><div><strong>Helpful tip</strong><p>Tell me your goal and a little context for a more useful answer.</p></div></div></aside>
+          </div>
+        </section>
+
+        <section class="view explore-view" id="exploreView" data-view-panel="Explore">
+          <div class="page-intro"><p class="eyebrow">YOUR EVERYDAY CREATIVE SIDEKICK</p><h1>A tool for every <span>kind of day.</span></h1><p>Pick a starting point. We’ll shape the rest together.</p></div>
+          <div class="explore-grid">
+            <article class="explore-card explore-study"><span class="explore-icon">✎</span><span class="explore-label">LEARN & GROW</span><h2>JOSEANGELITON Study</h2><p>Break down tricky subjects, create revision notes, or practice for that exam.</p><button data-tool="Study">Open Study <span>→</span></button></article>
+            <article class="explore-card explore-writer"><span class="explore-icon">⌁</span><span class="explore-label">WORDS, YOUR WAY</span><h2>JOSEANGELITON Writer</h2><p>Draft a thoughtful email, polish an essay, or find the perfect opening line.</p><button data-tool="Writer">Open Writer <span>→</span></button></article>
+            <article class="explore-card explore-creator"><span class="explore-icon">✳</span><span class="explore-label">MAKE SOMETHING NEW</span><h2>JOSEANGELITON Creator</h2><p>Explore creative writing, campaign concepts, visual directions, and fresh ideas.</p><button data-tool="Creator">Open Creator <span>→</span></button></article>
+            <article class="explore-card explore-business"><span class="explore-icon">↗</span><span class="explore-label">THINK BIGGER</span><h2>JOSEANGELITON Business</h2><p>Shape a business idea, map your next steps, and untangle a marketing challenge.</p><button data-tool="Business">Open Business <span>→</span></button></article>
+            <article class="explore-card explore-code"><span class="explore-icon">&lt;/&gt;</span><span class="explore-label">BUILD & DEBUG</span><h2>JOSEANGELITON Code</h2><p>Understand an error, sketch a feature, or plan your next app or website.</p><button data-tool="Code">Open Code <span>→</span></button></article>
+            <article class="explore-card explore-life"><span class="explore-icon">☼</span><span class="explore-label">LIFE, IN PROGRESS</span><h2>JOSEANGELITON Life</h2><p>Find a little motivation, organize your goals, or think something through.</p><button data-tool="Life">Open Life <span>→</span></button></article>
+          </div>
+          <p class="feature-note"><span>✦</span> Image generation, premium features, and mobile apps require future integrations. No payment or generated images are simulated here.</p>
+        </section>
+
+        <section class="view history-view" id="historyView" data-view-panel="History">
+          <div class="page-intro history-heading"><div><p class="eyebrow">YOUR IDEAS, ALL IN ONE PLACE</p><h1>Conversation <span>history.</span></h1><p>Your conversations are only visible to your account.</p></div><button class="button-primary" data-start-chat>＋ New chat</button></div>
+          <div class="history-list" id="historyList"></div>
+        </section>
+
+        <section class="view profile-view" id="profileView" data-view-panel="Profile">
+          <div class="page-intro"><p class="eyebrow">YOUR SPACE, YOUR SETTINGS</p><h1>Account & <span>privacy.</span></h1><p>Manage your sign-in and personal settings.</p></div>
+          <div class="settings-card"><div class="settings-avatar" id="settingsAvatar">JA</div><div class="settings-user"><strong id="settingsName">Guest</strong><span id="settingsEmail">Not signed in</span></div><button class="button-outline" id="accountAction">Sign in</button></div>
+          <div class="settings-card settings-row"><div><strong>Your plan</strong><p>Free plan · Payment processing is not enabled.</p></div><span class="plan-badge">FREE</span></div>
+          <div class="settings-card settings-row"><div><strong>Privacy & data</strong><p>Signed-in chats are stored in your private Firestore account.</p></div><button class="text-link" id="deleteAccountData">Delete my chats</button></div>
+          <div class="settings-card settings-row"><div><strong>Appearance</strong><p>Choose the look that feels right to you.</p></div><button class="button-outline" id="profileTheme">Toggle theme</button></div>
+        </section>
+      </main>
+      <nav class="mobile-nav" aria-label="Mobile navigation"><button class="active" data-view="Home"><span>⌂</span>Home</button><button data-view="Chat"><span>✳</span>Chat</button><button data-view="Explore"><span>◈</span>Explore</button><button data-view="History"><span>◷</span>History</button><button data-view="Profile"><span>◉</span>Profile</button></nav>
+    </div>
+
+    <div class="toast" id="toast" role="status"></div>
+    <div class="modal-backdrop" id="authModal" aria-hidden="true">
+      <section class="auth-modal" role="dialog" aria-modal="true" aria-labelledby="authTitle"><button class="modal-close" id="closeAuth" aria-label="Close">×</button><span class="modal-mark">✦</span><p class="eyebrow">YOUR BUDDY’S RIGHT HERE</p><h2 id="authTitle">Welcome back.</h2><p class="auth-subtitle" id="authSubtitle">Sign in to keep your conversations private and in sync.</p>
+        <form id="authForm"><label id="nameField" hidden>Your name<input id="authName" autocomplete="name" maxlength="80" /></label><label>Email address<input id="authEmail" type="email" autocomplete="email" required maxlength="254" /></label><label>Password<input id="authPassword" type="password" autocomplete="current-password" required minlength="8" maxlength="128" /></label><div class="auth-error" id="authError" role="alert"></div><button class="button-primary auth-submit" id="authSubmit" type="submit">Sign in <span>→</span></button></form>
+        <div class="auth-links"><button id="authSwitch">Create an account</button><button id="resetPassword">Forgot password?</button></div><p class="auth-privacy">Your account is secured by Firebase Authentication.</p>
+      </section>
+    </div>
+    <script type="module" src="app.js"></script>
+  </body>
+</html>
